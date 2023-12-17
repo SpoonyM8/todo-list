@@ -28,19 +28,20 @@ func HandleRegister(writer http.ResponseWriter, req *http.Request, _ httprouter.
 		return
 	}
 
-	// @TODO: check username isn't taken in DB, else return 409. Username will be unique as user ID, so cannot be duplicates
-	salt, _ := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-	hashedAndSaltedPassword, _ := bcrypt.GenerateFromPassword([]byte(password+string(salt)), bcrypt.DefaultCost)
-	fmt.Println(hashedAndSaltedPassword)
-	// @TODO: store salt and hash in DB for user.
-
 	var dbConn *sql.DB = req.Context().Value("db").(*sql.DB)
+
+	if isUsernameTaken(dbConn, username) {
+		util.ThrowConflictRequest(writer, constants.USERNAME_TAKEN)
+		return
+	}
+
+	salt, hashedAndSaltedPassword := generateHashAndSalt(password)
+
 	dbConn.Exec(`
-		INSERT INTO users (username, password, salt)
+		INSERT INTO user_schema.users
 		VALUES ($1, $2, $3)
 	`, username, hashedAndSaltedPassword, salt)
 
-	fmt.Println(dbConn.Query("SELECT * FROM users"))
 	returnJwt(writer, username)
 }
 
@@ -59,7 +60,6 @@ func HandleLogin(writer http.ResponseWriter, req *http.Request, _ httprouter.Par
 		util.ThrowBadRequest(writer, err.Error())
 		return
 	}
-	fmt.Println(username, password)
 	/*
 		@TODO: implement after DB is setup with username+password
 		if er := verifyPassword(string(hashedAndSaltedPassword), password, string(salt)); er != nil {
@@ -89,6 +89,17 @@ func verifyAuthRequestBody(req *http.Request) (string, string, error) {
 	return username, password, nil
 }
 
+func isUsernameTaken(dbConn *sql.DB, username string) bool {
+	var usernameCount int
+
+	dbConn.QueryRow(`
+		SELECT count(*) FROM user_schema.users u
+		WHERE u.username = $1	
+	`, username).Scan(&usernameCount)
+
+	return usernameCount != 0
+}
+
 func verifyPassword(storedPassword string, loginPassword string, salt string) error {
 	if err := bcrypt.CompareHashAndPassword([]byte(storedPassword), []byte(loginPassword+salt)); err != nil {
 		return err
@@ -101,9 +112,7 @@ func generateJWT(username string) string {
 		"username": username,
 		"exp":      time.Now().Add(time.Hour * 3).Unix(),
 	})
-	fmt.Println(token)
 	tokenString, _ := token.SignedString(SECRET_KEY)
-	fmt.Println(tokenString)
 	return tokenString
 }
 
@@ -133,4 +142,10 @@ func returnJwt(writer http.ResponseWriter, username string) {
 	writer.Header().Set(constants.CONTENT_TYPE, constants.APPLICATION_JSON)
 	writer.WriteHeader(http.StatusOK)
 	json.NewEncoder(writer).Encode(map[string]string{"JWT": generateJWT(username)})
+}
+
+func generateHashAndSalt(password string) (string, string) {
+	salt, _ := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	hashedAndSaltedPassword, _ := bcrypt.GenerateFromPassword([]byte(password+string(salt)), bcrypt.DefaultCost)
+	return string(hashedAndSaltedPassword), string(salt)
 }

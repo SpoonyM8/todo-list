@@ -10,7 +10,7 @@ const (
 	host     = "localhost"
 	port     = 5432
 	user     = "dev"
-	password = "root"
+	password = "dev"
 	dbname   = "todo_list_db"
 )
 
@@ -21,13 +21,12 @@ func ConnectToPostgres() *sql.DB {
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer db.Close()
 
 	err = db.Ping()
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	fmt.Println("Connected to db! Let's go!")
+	fmt.Println("Established connection to the database.")
 	return db
 }

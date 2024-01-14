@@ -46,28 +46,27 @@ func HandleRegister(writer http.ResponseWriter, req *http.Request, _ httprouter.
 }
 
 func HandleLogin(writer http.ResponseWriter, req *http.Request, _ httprouter.Params) {
-	/*
-		JWT verification should not be done for HandleLogin. It should return a JWT instead
-
-		if jwtError := verifyJWT(req.Header.Get(constants.ACCESS_TOKEN)); jwtError != nil {
-			util.ThrowUnauthorisedRequest(writer)
-			return
-		}
-	*/
-
 	username, password, err := verifyAuthRequestBody(req)
 	if err != nil {
 		util.ThrowBadRequest(writer, err.Error())
 		return
 	}
-	/*
-		@TODO: implement after DB is setup with username+password
-		if er := verifyPassword(string(hashedAndSaltedPassword), password, string(salt)); er != nil {
-			util.ThrowBadRequest(writer, constants.INVALID_USER_REQUEST)
-			return
-		}
-	*/
-	//
+
+	var dbConn *sql.DB = req.Context().Value("db").(*sql.DB)
+
+	var storedPassword, storedSalt string
+
+	dbConn.QueryRow(`
+		SELECT u.password, u.salt
+		FROM user_schema.users u
+		WHERE u.username=$1
+	`, username).Scan(&storedPassword, &storedSalt)
+
+	if !doPasswordsMatch(storedPassword, password, storedSalt) {
+		util.ThrowBadRequest(writer, constants.INVALID_USER_REQUEST)
+		return
+	}
+
 	returnJwt(writer, username)
 }
 
@@ -100,11 +99,11 @@ func isUsernameTaken(dbConn *sql.DB, username string) bool {
 	return usernameCount != 0
 }
 
-func verifyPassword(storedPassword string, loginPassword string, salt string) error {
+func doPasswordsMatch(storedPassword string, loginPassword string, salt string) bool {
 	if err := bcrypt.CompareHashAndPassword([]byte(storedPassword), []byte(loginPassword+salt)); err != nil {
-		return err
+		return false
 	}
-	return nil
+	return true
 }
 
 func generateJWT(username string) string {

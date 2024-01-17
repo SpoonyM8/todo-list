@@ -115,28 +115,6 @@ func generateJWT(username string) string {
 	return tokenString
 }
 
-/*
-func verifyJWT(tokenString string) error {
-	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-		return SECRET_KEY, nil
-	})
-	if err != nil {
-		return err
-	}
-	if !token.Valid {
-		return fmt.Errorf(constants.INVALID_JWT)
-	}
-
-	_, ok := token.Claims.(jwt.MapClaims)
-
-	if !ok {
-		return fmt.Errorf(constants.INVALID_CLAIMS)
-	}
-
-	return nil
-}
-*/
-
 func returnJwt(writer http.ResponseWriter, username string) {
 	writer.Header().Set(constants.CONTENT_TYPE, constants.APPLICATION_JSON)
 	writer.WriteHeader(http.StatusOK)

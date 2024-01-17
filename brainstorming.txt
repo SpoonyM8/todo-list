@@ -1,0 +1,11 @@
+table for auth:
+  username (primary key)
+  hashedpassword
+  salt
+
+table for simple todos:
+  username (foreign key)
+  description
+  targetDate
+  username+description+targetDate (primary key)
+

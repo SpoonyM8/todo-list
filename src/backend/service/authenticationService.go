@@ -14,8 +14,6 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-var SECRET_KEY = []byte("SO DAMN SECRET!!!") // @TODO: store a key securely somewhere, obviously not as a const here. Hashicorp Vault? SSM?
-
 type User struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
@@ -111,7 +109,7 @@ func generateJWT(username string) string {
 		"username": username,
 		"exp":      time.Now().Add(time.Hour * 3).Unix(),
 	})
-	tokenString, _ := token.SignedString(SECRET_KEY)
+	tokenString, _ := token.SignedString(util.SECRET_KEY)
 	return tokenString
 }
 

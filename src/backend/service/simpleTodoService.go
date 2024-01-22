@@ -1,6 +1,7 @@
 package service
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"main/constants"
@@ -21,7 +22,8 @@ type SimpleTodo struct {
 // @TODO: Need to get the username from decoding JWT after verifying it
 
 func HandleCreateSimpleTodo(writer http.ResponseWriter, req *http.Request, _ httprouter.Params) {
-	if err := util.VerifyJWT(req.Header.Get("JWT")); err != nil {
+	var tokenString string = req.Header.Get("JWT")
+	if err := util.VerifyJwt(tokenString); err != nil {
 		util.ThrowUnauthorisedRequest(writer)
 		return
 	}
@@ -33,6 +35,34 @@ func HandleCreateSimpleTodo(writer http.ResponseWriter, req *http.Request, _ htt
 		util.ThrowBadRequest(writer, err.Error())
 		return
 	}
+
+	username, err := util.GetUsernameFromJwt(tokenString)
+
+	if err != nil {
+		util.ThrowBadRequest(writer, err.Error())
+		return
+	}
+
+	dbConn := req.Context().Value("db").(*sql.DB)
+
+	var existingCount int
+	err = dbConn.QueryRow(`
+		SELECT count(*) FROM simple_todos st
+		WHERE st.username=$1
+		AND st.description=$2
+		AND st.targetDate=$3
+	`, username, todo.Description, todo.TargetDate).Scan(&existingCount)
+
+	if err != nil || existingCount != 0 {
+		fmt.Println(err)
+		util.ThrowConflictRequest(writer, constants.GetTaskAlreadyDefinedMessage(todo.Description, todo.TargetDate))
+		return
+	}
+
+	dbConn.Exec(`
+		INSERT INTO simple_todos
+		VALUES ($1, $2, $3)
+	`, username, todo.Description, todo.TargetDate)
 }
 
 func verifyCreateTodoRequestBody(todo SimpleTodo) error {
@@ -41,12 +71,11 @@ func verifyCreateTodoRequestBody(todo SimpleTodo) error {
 	}
 
 	if _, err := time.Parse("2006-01-02", todo.TargetDate); err != nil {
-		fmt.Println(err)
 		return fmt.Errorf(constants.INVALID_TARGET_DATE)
 	}
 
 	if isDateBeforeNow(todo.TargetDate, time.Now().Format("2006-01-02")) {
-		return fmt.Errorf("")
+		return fmt.Errorf(constants.INVALID_TARGET_DATE)
 	}
 
 	return nil

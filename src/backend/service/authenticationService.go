@@ -106,8 +106,8 @@ func doPasswordsMatch(storedPassword string, loginPassword string, salt string) 
 
 func generateJWT(username string) string {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"username": username,
-		"exp":      time.Now().Add(time.Hour * 3).Unix(),
+		"sub": username,
+		"exp": time.Now().Add(time.Hour * 3).Unix(),
 	})
 	tokenString, _ := token.SignedString(util.SECRET_KEY)
 	return tokenString

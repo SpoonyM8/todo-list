@@ -14,8 +14,6 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-var SECRET_KEY = []byte("SO DAMN SECRET!!!") // @TODO: store a key securely somewhere, obviously not as a const here. Hashicorp Vault? SSM?
-
 type User struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
@@ -108,34 +106,12 @@ func doPasswordsMatch(storedPassword string, loginPassword string, salt string) 
 
 func generateJWT(username string) string {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"username": username,
-		"exp":      time.Now().Add(time.Hour * 3).Unix(),
+		"sub": username,
+		"exp": time.Now().Add(time.Hour * 3).Unix(),
 	})
-	tokenString, _ := token.SignedString(SECRET_KEY)
+	tokenString, _ := token.SignedString(util.SECRET_KEY)
 	return tokenString
 }
-
-/*
-func verifyJWT(tokenString string) error {
-	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-		return SECRET_KEY, nil
-	})
-	if err != nil {
-		return err
-	}
-	if !token.Valid {
-		return fmt.Errorf(constants.INVALID_JWT)
-	}
-
-	_, ok := token.Claims.(jwt.MapClaims)
-
-	if !ok {
-		return fmt.Errorf(constants.INVALID_CLAIMS)
-	}
-
-	return nil
-}
-*/
 
 func returnJwt(writer http.ResponseWriter, username string) {
 	writer.Header().Set(constants.CONTENT_TYPE, constants.APPLICATION_JSON)

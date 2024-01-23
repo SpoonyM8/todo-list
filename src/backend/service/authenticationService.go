@@ -1,11 +1,13 @@
 package service
 
 import (
+	"crypto/rand"
 	"database/sql"
 	"encoding/json"
 	"fmt"
 	"main/constants"
 	"main/util"
+	"math/big"
 	"net/http"
 	"time"
 
@@ -33,7 +35,7 @@ func HandleRegister(writer http.ResponseWriter, req *http.Request, _ httprouter.
 		return
 	}
 
-	salt, hashedAndSaltedPassword := generateHashAndSalt(password)
+	hashedAndSaltedPassword, salt := generateHashAndSalt(password)
 
 	dbConn.Exec(`
 		INSERT INTO user_schema.users
@@ -120,7 +122,8 @@ func returnJwt(writer http.ResponseWriter, username string) {
 }
 
 func generateHashAndSalt(password string) (string, string) {
-	salt, _ := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-	hashedAndSaltedPassword, _ := bcrypt.GenerateFromPassword([]byte(password+string(salt)), bcrypt.DefaultCost)
-	return string(hashedAndSaltedPassword), string(salt)
+	salt, _ := rand.Int(rand.Reader, big.NewInt(big.MaxExp))
+	saltString := salt.String()
+	hashedAndSaltedPassword, _ := bcrypt.GenerateFromPassword([]byte(password+saltString), bcrypt.DefaultCost)
+	return string(hashedAndSaltedPassword), saltString
 }

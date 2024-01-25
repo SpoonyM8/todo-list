@@ -19,7 +19,9 @@ type SimpleTodo struct {
 	TargetDate  string `json:"targetDate"`
 }
 
-// @TODO: Need to get the username from decoding JWT after verifying it
+type GetTodosRequestBody struct {
+	TargetDate string `jasn:"targetDate"`
+}
 
 func HandleCreateSimpleTodo(writer http.ResponseWriter, req *http.Request, _ httprouter.Params) {
 	var tokenString string = req.Header.Get("JWT")
@@ -31,7 +33,7 @@ func HandleCreateSimpleTodo(writer http.ResponseWriter, req *http.Request, _ htt
 	var todo SimpleTodo
 	json.NewDecoder(req.Body).Decode(&todo)
 
-	if err := verifyCreateTodoRequestBody(todo); err != nil {
+	if err := verifyValidTodo(todo); err != nil {
 		util.ThrowBadRequest(writer, err.Error())
 		return
 	}
@@ -63,9 +65,100 @@ func HandleCreateSimpleTodo(writer http.ResponseWriter, req *http.Request, _ htt
 		INSERT INTO simple_todos
 		VALUES ($1, $2, $3)
 	`, username, todo.Description, todo.TargetDate)
+
+	writer.WriteHeader(http.StatusNoContent)
 }
 
-func verifyCreateTodoRequestBody(todo SimpleTodo) error {
+func HandleGetTodos(writer http.ResponseWriter, req *http.Request, _ httprouter.Params) {
+	var tokenString string = req.Header.Get("JWT")
+	if err := util.VerifyJwt(tokenString); err != nil {
+		util.ThrowUnauthorisedRequest(writer)
+		return
+	}
+
+	username, err := util.GetUsernameFromJwt(tokenString)
+
+	if err != nil {
+		util.ThrowBadRequest(writer, err.Error())
+		return
+	}
+
+	var reqBody GetTodosRequestBody
+	json.NewDecoder(req.Body).Decode(&reqBody)
+
+	if err := verifyGetTodosRequestBody(reqBody.TargetDate); err != nil {
+		util.ThrowBadRequest(writer, err.Error())
+		return
+	}
+
+	dbConn := req.Context().Value("db").(*sql.DB)
+
+	rows, err := dbConn.Query(`
+		SELECT description, targetDate from simple_todos
+		WHERE username=$1
+		AND targetDate=$2
+	`, username, reqBody.TargetDate)
+
+	fmt.Println(err)
+
+	var resp []SimpleTodo
+
+	for rows.Next() {
+		var row SimpleTodo
+		rows.Scan(&row.Description, &row.TargetDate)
+		resp = append(resp, row)
+	}
+
+	writer.Header().Set(constants.CONTENT_TYPE, constants.APPLICATION_JSON)
+	writer.WriteHeader(http.StatusOK)
+	json.NewEncoder(writer).Encode(resp)
+}
+
+func HandleDeleteSimpleTodo(writer http.ResponseWriter, req *http.Request, _ httprouter.Params) {
+	var tokenString string = req.Header.Get("JWT")
+	if err := util.VerifyJwt(tokenString); err != nil {
+		util.ThrowUnauthorisedRequest(writer)
+		return
+	}
+
+	var todo SimpleTodo
+	json.NewDecoder(req.Body).Decode(&todo)
+
+	if err := verifyValidTodo(todo); err != nil {
+		util.ThrowBadRequest(writer, err.Error())
+		return
+	}
+
+	username, err := util.GetUsernameFromJwt(tokenString)
+
+	if err != nil {
+		util.ThrowBadRequest(writer, err.Error())
+		return
+	}
+
+	dbConn := req.Context().Value("db").(*sql.DB)
+
+	dbConn.Exec(`
+		DELETE FROM simple_todos
+		WHERE username=$1
+		AND description=$2
+		AND targetDate=$3
+	`, username, todo.Description, todo.TargetDate)
+
+	writer.WriteHeader(http.StatusNoContent)
+}
+
+func verifyGetTodosRequestBody(dateToCheck string) error {
+	if _, err := time.Parse("2006-01-02", dateToCheck); err != nil {
+		return fmt.Errorf(constants.INVALID_TARGET_DATE)
+	}
+	if isDateBeforeNow(dateToCheck, time.Now().Format("2006-01-02")) {
+		return fmt.Errorf(constants.INVALID_TARGET_DATE)
+	}
+	return nil
+}
+
+func verifyValidTodo(todo SimpleTodo) error {
 	if len(todo.Description) == 0 {
 		return fmt.Errorf(constants.DESCRIPTION_EMPTY)
 	}
@@ -82,8 +175,10 @@ func verifyCreateTodoRequestBody(todo SimpleTodo) error {
 }
 
 func isDateBeforeNow(dateToCheck, now string) bool {
-	// No need to check for invalid numbers after splitting as time.Parse checked already
 	dateSplit := strings.Split(dateToCheck, "-")
+	if len(dateSplit) != 3 {
+		return false
+	}
 	year, _ := strconv.Atoi(dateSplit[0])
 	month, _ := strconv.Atoi(dateSplit[1])
 	day, _ := strconv.Atoi(dateSplit[2])

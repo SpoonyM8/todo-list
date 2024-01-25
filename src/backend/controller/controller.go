@@ -13,7 +13,8 @@ func SetupRoutes(router *httprouter.Router, dbConn *sql.DB) {
 	router.POST("/register", applyDbMiddleware(dbConn, service.HandleRegister))
 	router.POST("/login", applyDbMiddleware(dbConn, service.HandleLogin))
 	router.POST("/todo", applyDbMiddleware(dbConn, service.HandleCreateSimpleTodo))
-	//router.GET("/list/:userId", 	applyDbMiddleware())
+	router.GET("/todo", applyDbMiddleware(dbConn, service.HandleGetTodos))
+	router.DELETE("/todo", applyDbMiddleware(dbConn, service.HandleDeleteSimpleTodo))
 }
 
 func applyDbMiddleware(dbConn *sql.DB, next httprouter.Handle) httprouter.Handle {

@@ -24,8 +24,8 @@ type GetTodosRequestBody struct {
 }
 
 func HandleCreateSimpleTodo(writer http.ResponseWriter, req *http.Request, _ httprouter.Params) {
-	var tokenString string = req.Header.Get("JWT")
-	if err := util.VerifyJwt(tokenString); err != nil {
+	username, err := verifyJwtAndUsername(req.Header.Get("JWT"), writer)
+	if err != nil {
 		util.ThrowUnauthorisedRequest(writer)
 		return
 	}
@@ -34,13 +34,6 @@ func HandleCreateSimpleTodo(writer http.ResponseWriter, req *http.Request, _ htt
 	json.NewDecoder(req.Body).Decode(&todo)
 
 	if err := verifyValidTodo(todo); err != nil {
-		util.ThrowBadRequest(writer, err.Error())
-		return
-	}
-
-	username, err := util.GetUsernameFromJwt(tokenString)
-
-	if err != nil {
 		util.ThrowBadRequest(writer, err.Error())
 		return
 	}
@@ -70,16 +63,9 @@ func HandleCreateSimpleTodo(writer http.ResponseWriter, req *http.Request, _ htt
 }
 
 func HandleGetTodos(writer http.ResponseWriter, req *http.Request, _ httprouter.Params) {
-	var tokenString string = req.Header.Get("JWT")
-	if err := util.VerifyJwt(tokenString); err != nil {
-		util.ThrowUnauthorisedRequest(writer)
-		return
-	}
-
-	username, err := util.GetUsernameFromJwt(tokenString)
-
+	username, err := verifyJwtAndUsername(req.Header.Get("JWT"), writer)
 	if err != nil {
-		util.ThrowBadRequest(writer, err.Error())
+		util.ThrowUnauthorisedRequest(writer)
 		return
 	}
 
@@ -115,8 +101,8 @@ func HandleGetTodos(writer http.ResponseWriter, req *http.Request, _ httprouter.
 }
 
 func HandleDeleteSimpleTodo(writer http.ResponseWriter, req *http.Request, _ httprouter.Params) {
-	var tokenString string = req.Header.Get("JWT")
-	if err := util.VerifyJwt(tokenString); err != nil {
+	username, err := verifyJwtAndUsername(req.Header.Get("JWT"), writer)
+	if err != nil {
 		util.ThrowUnauthorisedRequest(writer)
 		return
 	}
@@ -125,13 +111,6 @@ func HandleDeleteSimpleTodo(writer http.ResponseWriter, req *http.Request, _ htt
 	json.NewDecoder(req.Body).Decode(&todo)
 
 	if err := verifyValidTodo(todo); err != nil {
-		util.ThrowBadRequest(writer, err.Error())
-		return
-	}
-
-	username, err := util.GetUsernameFromJwt(tokenString)
-
-	if err != nil {
 		util.ThrowBadRequest(writer, err.Error())
 		return
 	}
@@ -203,4 +182,12 @@ func isDateBeforeNow(dateToCheck, now string) bool {
 	}
 
 	return false
+}
+
+func verifyJwtAndUsername(token string, writer http.ResponseWriter) (string, error) {
+	if err := util.VerifyJwt(token); err != nil {
+		return "", err
+	}
+	username, err := util.GetUsernameFromJwt(token)
+	return username, err
 }
